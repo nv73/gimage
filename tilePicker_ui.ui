@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>imageTilePicker</class>
+ <widget class="QMainWindow" name="imageTilePicker">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>766</width>
+    <height>540</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Tile Picker</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout">
+    <item row="0" column="0">
+     <layout class="QVBoxLayout" name="canvasView"/>
+    </item>
+    <item row="1" column="1">
+     <layout class="QFormLayout" name="formLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>Object Type</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="classNameCombo"/>
+      </item>
+      <item row="1" column="1">
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QRadioButton" name="tileSelectRadio">
+          <property name="text">
+           <string>Tile Select Mode</string>
+          </property>
+          <property name="checkable">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="spectrumSelectRadio">
+          <property name="text">
+           <string>Spectrum Select Mode</string>
+          </property>
+          <property name="checkable">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="label_3">
+        <property name="text">
+         <string>Tile Size</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QLineEdit" name="tileSizeEdit">
+        <property name="text">
+         <string>10</string>
+        </property>
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="label_4">
+        <property name="text">
+         <string>Band</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QComboBox" name="bandSelectCombo"/>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="label_2">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item row="0" column="1">
+     <layout class="QVBoxLayout" name="loadedImagesTableLayout"/>
+    </item>
+    <item row="1" column="0">
+     <layout class="QFormLayout" name="selectedTilesTableLayout"/>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>766</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuObjects">
+    <property name="title">
+     <string>Objects</string>
+    </property>
+    <addaction name="actionAdd_New_Object_Type"/>
+    <addaction name="actionLoad_Object_Config"/>
+    <addaction name="actionExport_Objects_to_File"/>
+   </widget>
+   <widget class="QMenu" name="menuImage">
+    <property name="title">
+     <string>Image</string>
+    </property>
+    <addaction name="actionLoad_Images"/>
+   </widget>
+   <widget class="QMenu" name="menuClassification">
+    <property name="title">
+     <string>Classification</string>
+    </property>
+    <addaction name="actionUnsupervised"/>
+    <addaction name="actionSupervised"/>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+   </widget>
+   <addaction name="menuImage"/>
+   <addaction name="menuObjects"/>
+   <addaction name="menuClassification"/>
+   <addaction name="menuHelp"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionAdd_New_Object_Type">
+   <property name="text">
+    <string>Add New Object Type</string>
+   </property>
+  </action>
+  <action name="actionLoad_Object_Config">
+   <property name="text">
+    <string>Load Object Config</string>
+   </property>
+  </action>
+  <action name="actionLoad_Images">
+   <property name="text">
+    <string>Add Image</string>
+   </property>
+  </action>
+  <action name="actionExport_Objects_to_File">
+   <property name="text">
+    <string>Export Objects to File</string>
+   </property>
+  </action>
+  <action name="actionUnsupervised">
+   <property name="text">
+    <string>Unsupervised</string>
+   </property>
+  </action>
+  <action name="actionSupervised">
+   <property name="text">
+    <string>Supervised</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
