@@ -44,6 +44,7 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
         self.loadedImagesTable.itemDoubleClicked.connect(self.changeActiveImage)
         self.tileSelectRadio.toggled.connect(self.tileSelectRadioUpdate)
         self.spectrumSelectRadio.toggled.connect(self.spectrumSelectRadioUpdate)
+        self.bandSelectCombo.currentTextChanged.connect(self.updateActiveBand)
         
     def tileSelectRadioUpdate(self):
         
@@ -71,6 +72,12 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
             self.tileSelectRadio.setChecked(False)
             self.canvas.isSpectrum = True
             
+    def updateActiveBand(self):
+        
+        self.canvas.activeBand = str(self.bandSelectCombo.currentText())
+    
+    #Runs whenever the lineedit for tile size is updated
+    #This changes the dimensions of the array created when shift+clicking the geoCanvas
     def tileSizeChanged(self):
         
         try:
@@ -80,7 +87,8 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
         except:
             
             self.canvas.patchSize = 10
-            
+    
+    #Loads a tif image
     def loadImage(self):
         
         filePath = QtWidgets.QFileDialog.getOpenFileName(
@@ -108,7 +116,10 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
             self.tileSelectRadio.setCheckable(True)
             self.spectrumSelectRadio.setCheckable(True)
             self.spectrumSelectRadio.setChecked(True)
-        
+            
+        self.canvas.activeBand = str(self.bandSelectCombo.currentText())
+    
+    #Changes which image is being interacted with
     def changeActiveImage(self):
         
         activeFile = self.loadedImagesTable.currentItem().text()
@@ -116,7 +127,9 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
         self.canvas.changeGeoImage(activeFile)
 
         self.updateBandCombo(self.canvas.geoImage[activeFile].bands)
-        
+    
+    #updates the combobox containing the band numbers to corrected reflect
+    #the currently active image
     def updateBandCombo(self, bands):
         
         self.bandSelectCombo.clear()
@@ -222,9 +235,11 @@ class geoCanvas(QtWidgets.QGraphicsView):
         self.scene.addItem(self._QtImage)
         self.scene.addItem(self.displayed_coordinates)
         
-        #Other important variables
+        #Active geo image information
         self.activeGeoImagePath = None
         self.activeGeoArray = None
+        self.activeBand = None
+
         
     # Taken from https://stackoverflow.com/questions/35508711/how-to-enable-pan-and-zoom-in-a-qgraphicsvie
     def setQtImage(self, pixmap=None):
@@ -338,23 +353,31 @@ class geoCanvas(QtWidgets.QGraphicsView):
         #Draw rectangle on a shift click input
         if QtWidgets.QApplication.keyboardModifiers() == QtCore.Qt.ShiftModifier:
             
-            tileCorner = (selected_coordinates.x() - (self.patchSize / 2), 
-                            selected_coordinates.y() - (self.patchSize / 2))
+            if self.isSpectrum == False:
+                
+                tileCorner = (selected_coordinates.x() - (self.patchSize / 2), selected_coordinates.y() - (self.patchSize / 2))
             
-            rect = QtWidgets.QGraphicsRectItem(0,0, self.patchSize, self.patchSize)
+                rect = QtWidgets.QGraphicsRectItem(0,0, self.patchSize, self.patchSize)
             
-            rect.setPos(tileCorner[0], tileCorner[1])
+                rect.setPos(tileCorner[0], tileCorner[1])
+                
+                self.scene.addItem(rect)
             
-            #Selected tile creates a tile object which is to be stored into the class tile dictionary
-            #Need to adjust to take a 3D array of data
-            setTile = tile(self.activeGeo,
-                           tileCorner[0], tileCorner[1], self.patchSize, "Bob")
-                        
-            self.tiles[self.tile_index] = setTile
+            else:
+                
+                xy = (selected_coordinates.x(), selected_coordinates.y())
+                
+                lineH = QtWidgets.QGraphicsLineItem(xy[0] - 10, xy[1], xy[0] + 10, xy[1])
+                lineV = QtWidgets.QGraphicsLineItem(xy[0], xy[1] + 10, xy[0], xy[1] - 10)
+                
+                self.scene.addItem(lineH)
+                self.scene.addItem(lineV)
+                
+                arr = activeGeoArray[:,xy[1], xy[0]]
             
-            self.patch_index += 1
+            self.tile_index += 1
             
-            self.scene.addItem(rect)
+            
 
         super(geoCanvas, self).mousePressEvent(event)
 
