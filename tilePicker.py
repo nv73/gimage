@@ -11,6 +11,7 @@ import tilePicker_ui
 import gdal
 import numpy as np
 import osr
+from os.path import basename
 
 class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
     
@@ -30,10 +31,13 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
         self.loadedImagesTable = tableWidget()
         self.loadedImagesTableLayout.addWidget(self.loadedImagesTable)
         self.loadedImagesTable.setColumnCount(1)
+        self.loadedImagesTable.setSizeAdjustPolicy(QtWidgets.QAbstractScrollArea.AdjustToContents)
 
         #Set up the layout for interacting with selected tiles
-        self.selectedTilesTable = QtWidgets.QTableWidget()
+        self.selectedTilesTable = tableWidget()
         self.selectedTilesTableLayout.addWidget(self.selectedTilesTable)
+        self.selectedTilesTable.setColumnCount(1)
+        self.selectedTilesTable.setSizeAdjustPolicy(QtWidgets.QAbstractScrollArea.AdjustToContents)
         
         # Containers for GUI variables
         self.tileSize = self.tileSizeEdit.text()
@@ -45,6 +49,24 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
         self.tileSelectRadio.toggled.connect(self.tileSelectRadioUpdate)
         self.spectrumSelectRadio.toggled.connect(self.spectrumSelectRadioUpdate)
         self.bandSelectCombo.currentTextChanged.connect(self.updateActiveBand)
+        self.classNameCombo.currentTextChanged.connect(self.updateActiveClass)
+        self.canvas.tileAdded.connect(self.updateSelectedTiles)
+        
+        #Add default object classes
+        defaultClasses = ["Tree", "Snow", "Water", "Asphalt", "Soil", "Rock"]
+        
+        for i in defaultClasses:
+            
+            self.classNameCombo.addItem(i)
+    
+    def updateSelectedTiles(self):
+        
+        tileInfo = "%i, %i, %s, %s" % (self.canvas.tiles[self.canvas.tile_index].x, 
+                                   self.canvas.tiles[self.canvas.tile_index].y,
+                                   self.canvas.tiles[self.canvas.tile_index].classification,
+                                   basename(self.canvas.activeGeoImagePath))
+        
+        self.selectedTilesTable.addToNext(tileInfo)
         
     def tileSelectRadioUpdate(self):
         
@@ -56,7 +78,9 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
         else:
         
             self.tileSizeEdit.setReadOnly(False)
+            
             self.spectrumSelectRadio.setChecked(False)
+            
             self.canvas.isSpectrum = False
         
     def spectrumSelectRadioUpdate(self):
@@ -69,12 +93,18 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
         else:
         
             self.tileSizeEdit.setReadOnly(True)
+            
             self.tileSelectRadio.setChecked(False)
+            
             self.canvas.isSpectrum = True
             
     def updateActiveBand(self):
         
         self.canvas.activeBand = str(self.bandSelectCombo.currentText())
+        
+    def updateActiveClass(self):
+        
+        self.canvas.activeClass = str(self.classNameCombo.currentText())
     
     #Runs whenever the lineedit for tile size is updated
     #This changes the dimensions of the array created when shift+clicking the geoCanvas
@@ -105,7 +135,9 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
         if self.canvas.activeGeoArray.shape[0] == 1:
             
             self.tileSelectRadio.setCheckable(True)
+            
             self.tileSelectRadio.setChecked(True)
+            
             self.tileSizeEdit.setReadOnly(False)
             
             #Remove this when testing is done
@@ -114,7 +146,9 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
         else:
             
             self.tileSelectRadio.setCheckable(True)
+            
             self.spectrumSelectRadio.setCheckable(True)
+            
             self.spectrumSelectRadio.setChecked(True)
             
         self.canvas.activeBand = str(self.bandSelectCombo.currentText())
@@ -148,7 +182,19 @@ class tableWidget(QtWidgets.QTableWidget):
         
         self.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         
-    def addToNext(self, inVal):
+        self.itemDoubleClicked.connect(self.deleteCell)
+        
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)
+        
+        
+        
+    def deleteCell(self):
+        
+        cleared = QtWidgets.QTableWidgetItem("Cleared")
+        print(self.currentItem().text())
+        self.setItem(self.currentItem().row(), self.currentItem().column(), cleared)
+        
+    def addToNext(self, inVal, column = 0):
         
         newItem = QtWidgets.QTableWidgetItem(inVal)
         
@@ -158,7 +204,7 @@ class tableWidget(QtWidgets.QTableWidget):
             
             self.setRowCount(1)
             
-            self.setItem(0,0, newItem)
+            self.setItem(0,column, newItem)
         
         else:
             
@@ -166,7 +212,7 @@ class tableWidget(QtWidgets.QTableWidget):
             
             for i in range(rows + 1):
                 
-                self.setCurrentCell(i, 0)
+                self.setCurrentCell(i, column)
                 
                 if self.currentItem():
             
@@ -174,17 +220,17 @@ class tableWidget(QtWidgets.QTableWidget):
                     
                 else:
                     
-                    self.setItem(i, 0, newItem)
+                    self.setItem(i, column, newItem)
                     
                     i+= 1
         
-
-#I dont know why the import wasn't working, so this is getting copied right into the file
+        self.resizeColumnsToContents()
+              
 class geoCanvas(QtWidgets.QGraphicsView):
     
     photoClicked = QtCore.pyqtSignal(QtCore.QPoint)
     
-    patchAdded = QtCore.pyqtSignal(str)
+    tileAdded = QtCore.pyqtSignal()
     
     patchSizeChanged = QtCore.pyqtSignal(int)
     
@@ -203,7 +249,8 @@ class geoCanvas(QtWidgets.QGraphicsView):
         self.setTransformationAnchor(QtWidgets.QGraphicsView.AnchorUnderMouse)
         self.setResizeAnchor(QtWidgets.QGraphicsView.AnchorUnderMouse)
         self.setMouseTracking(True)
-
+        self.setMinimumSize(500, 400)
+        
         # some helper variables
         self._empty = True
         self._zoom = 0
@@ -239,6 +286,8 @@ class geoCanvas(QtWidgets.QGraphicsView):
         self.activeGeoImagePath = None
         self.activeGeoArray = None
         self.activeBand = None
+        
+        self.activeClass = "Tree"
 
         
     # Taken from https://stackoverflow.com/questions/35508711/how-to-enable-pan-and-zoom-in-a-qgraphicsvie
@@ -355,14 +404,31 @@ class geoCanvas(QtWidgets.QGraphicsView):
             
             if self.isSpectrum == False:
                 
-                tileCorner = (selected_coordinates.x() - (self.patchSize / 2), selected_coordinates.y() - (self.patchSize / 2))
+                tileCorner = (int(selected_coordinates.x() - (self.patchSize / 2)), int(selected_coordinates.y() - (self.patchSize / 2)))
             
                 rect = QtWidgets.QGraphicsRectItem(0,0, self.patchSize, self.patchSize)
             
                 rect.setPos(tileCorner[0], tileCorner[1])
                 
                 self.scene.addItem(rect)
-            
+                
+               
+                if self.isSpectrum == False:
+                    
+                    dataType = "tile"
+                    
+                else:
+                    
+                    dataType = "spectrum"
+                    
+                newTile = tile(self.activeGeoArray[tileCorner[1]:tileCorner[1] + self.patchSize, tileCorner[0]:tileCorner[0] + self.patchSize],
+                               tileCorner[0], tileCorner[1], self.activeClass, dataType)
+ 
+                
+                self.tiles[self.tile_index] = newTile
+                
+                self.tileAdded.emit()
+                
             else:
                 
                 xy = (selected_coordinates.x(), selected_coordinates.y())
@@ -377,8 +443,6 @@ class geoCanvas(QtWidgets.QGraphicsView):
             
             self.tile_index += 1
             
-            
-
         super(geoCanvas, self).mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
@@ -550,7 +614,7 @@ class geoImageReference(object):
         
 class tile(object):
     
-    def __init__(self, data, x, y, size, classification):
+    def __init__(self, data, x, y, classification, dataType):
         
         self.data = data
         
@@ -558,9 +622,15 @@ class tile(object):
         
         self.y = y
         
-        self.size = size
+        self.shape = data.shape
         
         self.classification = classification
+        
+        self.dataType = dataType
+        
+    def __str__(self):
+        
+        return(self.data)
         
 if __name__ == "__main__":
     
