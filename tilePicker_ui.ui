@@ -16,7 +16,11 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
     <item row="0" column="0">
-     <layout class="QVBoxLayout" name="canvasView"/>
+     <layout class="QVBoxLayout" name="canvasView">
+      <property name="sizeConstraint">
+       <enum>QLayout::SetDefaultConstraint</enum>
+      </property>
+     </layout>
     </item>
     <item row="1" column="1">
      <layout class="QFormLayout" name="formLayout">
@@ -28,7 +32,48 @@
        </widget>
       </item>
       <item row="0" column="1">
-       <widget class="QComboBox" name="classNameCombo"/>
+       <widget class="QComboBox" name="classNameCombo">
+        <item>
+         <property name="text">
+          <string>Tree</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Snow</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Water</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Asphalt</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Concrete</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Soil</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Grass</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Paint</string>
+         </property>
+        </item>
+       </widget>
       </item>
       <item row="1" column="1">
        <layout class="QHBoxLayout" name="horizontalLayout">
@@ -88,13 +133,24 @@
         </property>
        </widget>
       </item>
+      <item row="5" column="1">
+       <widget class="QPushButton" name="pushButton">
+        <property name="text">
+         <string>PushButton</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </item>
     <item row="0" column="1">
      <layout class="QVBoxLayout" name="loadedImagesTableLayout"/>
     </item>
     <item row="1" column="0">
-     <layout class="QFormLayout" name="selectedTilesTableLayout"/>
+     <layout class="QFormLayout" name="selectedTilesTableLayout">
+      <property name="sizeConstraint">
+       <enum>QLayout::SetDefaultConstraint</enum>
+      </property>
+     </layout>
     </item>
    </layout>
   </widget>
@@ -125,8 +181,35 @@
     <property name="title">
      <string>Classification</string>
     </property>
-    <addaction name="actionUnsupervised"/>
-    <addaction name="actionSupervised"/>
+    <widget class="QMenu" name="menuUnsupervised">
+     <property name="title">
+      <string>Unsupervised</string>
+     </property>
+     <addaction name="actionK_Means"/>
+    </widget>
+    <widget class="QMenu" name="menuSupervised">
+     <property name="title">
+      <string>Supervised</string>
+     </property>
+     <widget class="QMenu" name="menuAdaBoost">
+      <property name="title">
+       <string>AdaBoost</string>
+      </property>
+      <addaction name="actionAdaBoostTrain"/>
+      <addaction name="actionAdaBoostClassify"/>
+     </widget>
+     <widget class="QMenu" name="menuRandom_Forest">
+      <property name="title">
+       <string>Random Forest</string>
+      </property>
+      <addaction name="actionRfTrain"/>
+      <addaction name="actionRfClassify"/>
+     </widget>
+     <addaction name="menuAdaBoost"/>
+     <addaction name="menuRandom_Forest"/>
+    </widget>
+    <addaction name="menuUnsupervised"/>
+    <addaction name="menuSupervised"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -159,14 +242,29 @@
     <string>Export Objects to File</string>
    </property>
   </action>
-  <action name="actionUnsupervised">
+  <action name="actionK_Means">
    <property name="text">
-    <string>Unsupervised</string>
+    <string>K-Means</string>
    </property>
   </action>
-  <action name="actionSupervised">
+  <action name="actionAdaBoostTrain">
    <property name="text">
-    <string>Supervised</string>
+    <string>Train</string>
+   </property>
+  </action>
+  <action name="actionAdaBoostClassify">
+   <property name="text">
+    <string>Classify</string>
+   </property>
+  </action>
+  <action name="actionRfTrain">
+   <property name="text">
+    <string>Train</string>
+   </property>
+  </action>
+  <action name="actionRfClassify">
+   <property name="text">
+    <string>Classify</string>
    </property>
   </action>
  </widget>
