@@ -68,11 +68,18 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
         self.selectedTilesTable.cellDeleted.connect(self.updateTileIndexOnDelete)
         self.actionAdd_New_Object_Type.triggered.connect(self.addNewObjectClass)
         self.actionExport_Objects_to_File.triggered.connect(self.canvas.exportTilesToFile)
+        
+        #Train
         self.actionAdaBoostTrain.triggered.connect(self.canvas.trainAdaBoost)
         self.actionRfTrain.triggered.connect(self.canvas.trainRandomForest)
         
+        #Classify
+        self.actionAdaBoostClassify.triggered.connect(lambda i: self.canvas.classify_all("adaBoost"))
+        self.actionRfClassify.triggered.connect(lambda i: self.canvas.classify_all("randomForest"))
+        
         #Test button
-        self.pushButton.clicked.connect(self.canvas.classify_all)
+        #self.pushButton.clicked.connect(self.canvas.classify_all)
+        #self.pushButton.clicked.connect(lambda i: self.test("i"))
         
         #Add default object classes
         defaultClasses = ["Tree", "Snow", "Water", "Asphalt", "Soil", "Rock"]
@@ -80,7 +87,11 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
         for i in defaultClasses:
             
             self.classNameCombo.addItem(i)
-            
+    
+    def test(self, inputv):
+        
+        print(inputv)
+        
     def addNewObjectClass(self):
         
         newClass = QtWidgets.QInputDialog.getText(self, "Input New Class", "Input New Class")
@@ -343,10 +354,8 @@ class geoCanvas(QtWidgets.QGraphicsView):
         #Machine Learning stuff
         self.labels = None
         self.testFeatures = None
-        self.adaBoostModel = None
-        self.randomForestModel = None
+        self.models = {}
 
-        
     # Taken from https://stackoverflow.com/questions/35508711/how-to-enable-pan-and-zoom-in-a-qgraphicsvie
     def setQtImage(self, pixmap=None):
 
@@ -654,7 +663,7 @@ class geoCanvas(QtWidgets.QGraphicsView):
         
         pickle.dump(self.tiles, open(fname[1], 'wb'))
         
-    def tilesToDataframe(self):
+    def spectralToDataframe(self):
         
         data = self.tiles
         
@@ -711,50 +720,63 @@ class geoCanvas(QtWidgets.QGraphicsView):
         
         return(labels)
     
+    def prepSpectrum(self):
+
+            tileDataFrame = self.spectralToDataframe()
+        
+            features = np.array(tileDataFrame.drop(["class", "id"], axis=1))
+        
+            labels = self.encode_labels(tileDataFrame, "class")
+            
+            labels = np.array(labels["class_encoded"])
+            
+            return(features, labels)
+
     def trainAdaBoost(self):
         
-        tileDataFrame = self.tilesToDataframe()
+        if self.isSpectrum == True:
+            
+            features, labels = self.prepSpectrum()
+            
+            train_Features, test_Features, train_Labels, test_Labels = train_test_split(
+                features, labels, test_size=0.3)
         
-        features = np.array(tileDataFrame.drop(["class", "id"], axis=1))
+            adaboost = AdaBoostClassifier(n_estimators = 50, learning_rate=1)
         
-        labels = self.encode_labels(tileDataFrame, "class")
-        labels = np.array(labels["class_encoded"])
-        #labels = np.array(pd.get_dummies(tileDataFrame["class"]))
+            model = adaboost.fit(train_Features, train_Labels)
 
-        train_Features, test_Features, train_Labels, test_Labels = train_test_split(
-            features, labels, test_size=0.3)
+            self.models["adaBoost"] = model
         
-        adaboost = AdaBoostClassifier(n_estimators = 50, learning_rate=1)
-        
-        model = adaboost.fit(train_Features, train_Labels)
-        
-        self.adaBoostModel = model
-        
-        prediction = model.predict(test_Features)
-        print("Accuracy", metrics.accuracy_score(test_Labels, prediction))
+            prediction = model.predict(test_Features)
+            print("Accuracy", metrics.accuracy_score(test_Labels, prediction))
+            
+        else:
+            
+            pass
         
     def trainRandomForest(self):
         
-        tileDataFrame = self.tilesToDataframe()
-        
-        features = np.array(tileDataFrame.drop(["class", "id"], axis=1))
-        
-        labels = self.encode_labels(tileDataFrame, "class")
-        labels = np.array(labels["class_encoded"])
+        if self.isSpectrum == True:
+            
+            features, labels = self.prepSpectrum()
 
-        train_Features, test_Features, train_Labels, test_Labels = train_test_split(
-            features, labels, test_size=0.3)
+            train_Features, test_Features, train_Labels, test_Labels = train_test_split(
+                features, labels, test_size=0.3)
         
-        rfClass = RandomForestClassifier()
+            rfClass = RandomForestClassifier()
         
-        model = rfClass.fit(train_Features, train_Labels)
-        
-        self.randomForestModel = model
+            model = rfClass.fit(train_Features, train_Labels)
 
-        prediction = model.predict(test_Features)
-        print("Accuracy", metrics.accuracy_score(test_Labels, prediction))
-        
-    def classify_all(self):
+            self.models["randomForest"] = model
+
+            prediction = model.predict(test_Features)
+            print("Accuracy", metrics.accuracy_score(test_Labels, prediction))
+            
+        else:
+            
+            pass
+
+    def classify_all(self, model):
         
         shp = self.activeGeoArray.shape
         arr = self.activeGeoArray
@@ -768,18 +790,13 @@ class geoCanvas(QtWidgets.QGraphicsView):
             
             for x in range(w):
                 
-                classified_image[y, x] = self.randomForestModel.predict([arr[:,y,x]])
-        
-        print(classified_image)
+                classified_image[y, x] = self.models[model].predict([arr[:,y,x]])
         
         classified_image = classified_image.reshape(l, w)
         
         img = Image.fromarray((classified_image / np.nanmax(classified_image)) * 255)
         img2 = img.convert("L")
         img2.save("testBW.png")
-        
-        
-        
 
 #Extracts useful information from geo imagery, stores it, and closes the geoimage file
 #This is used to be able to save and access the relevant metadata, without clogging
