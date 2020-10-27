@@ -25,6 +25,7 @@ import pickle
 from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn import metrics, preprocessing
+from skimage.feature import greycomatrix, greycoprops
 import pandas as pd
 
 class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
@@ -321,7 +322,7 @@ class geoCanvas(QtWidgets.QGraphicsView):
         self.geoImage_index = 0
         
         #Tile selection variables
-        self.patchSize = 10
+        self.patchSize = int(10)
         self.isSpectrum = False
         self.activeTileShape = QtWidgets.QGraphicsRectItem(0,0, self.patchSize, self.patchSize)
         self.tiles = {}
@@ -348,6 +349,7 @@ class geoCanvas(QtWidgets.QGraphicsView):
         #Active geo image information
         self.activeGeoImagePath = None
         self.activeGeoArray = None
+        self.normal_activeGeoArray = None
         self.activeBand = 0
         self.activeClass = "Tree"
         
@@ -468,6 +470,7 @@ class geoCanvas(QtWidgets.QGraphicsView):
         #Draw rectangle on a shift click input
         if QtWidgets.QApplication.keyboardModifiers() == QtCore.Qt.ShiftModifier:
             
+            #Add a try statement in here to fix any tiles that leave the image borders
             if self.isSpectrum == False:
                 
                 tileCorner = (int(selected_coordinates.x() - (self.patchSize / 2)), int(selected_coordinates.y() - (self.patchSize / 2)))
@@ -477,16 +480,9 @@ class geoCanvas(QtWidgets.QGraphicsView):
                 rect.setPos(tileCorner[0], tileCorner[1])
                 
                 self.scene.addItem(rect)
-                
-                #Testing print statements
-                #print(self.activeGeoArray.shape)
-                #print(self.activeGeoArray[:,tileCorner[0]: tileCorner[0] + 10, tileCorner[1]: tileCorner[1] + 10])
-                #print(self.patchSize)
-                
                 newTile = tile(self.activeGeoArray[:,tileCorner[1]:tileCorner[1] + self.patchSize, tileCorner[0]:tileCorner[0] + self.patchSize],
                                tileCorner[0], tileCorner[1], self.activeClass, self.patchSize)
  
-                
                 self.tiles[self.tile_index] = newTile
                 
                 self.tileAdded.emit()
@@ -614,7 +610,8 @@ class geoCanvas(QtWidgets.QGraphicsView):
         self.activeGeoImagePath = geoImagePath
         
         self.activeGeoArray = self.readAs3DArray(geoImagePath)
-        
+        print(self.activeGeoArray.shape)
+
         self.displayGeoImage()
     
     #This is a bit redundant but more intuitive
@@ -627,9 +624,15 @@ class geoCanvas(QtWidgets.QGraphicsView):
         self.displayGeoImage(band=self.activeBand)
     
     def displayGeoImage(self, band=0):
-
-        self.displayArray(self.activeGeoArray[int(band)])
         
+        try:
+            
+            self.displayArray(self.activeGeoArray[int(band)])
+        
+        except IndexError as error:
+            
+            self.displayArray(self.activeGeoArray[0])
+            
     def getGeodetics(self, inputGeoImage):
         
         geoTransform = inputGeoImage.GetGeoTransform()
@@ -639,12 +642,12 @@ class geoCanvas(QtWidgets.QGraphicsView):
         return(geoTransform, projection)
     
     #Takes in a GDAL object and returns a 3D Array of that object
-    #This should only be used if the image in question has more than one band as it can potentially use a lot of memory
     def readAs3DArray(self, inRasterPath):
         
         gimage = gdal.Open(inRasterPath)
         
         bands = gimage.RasterCount
+        print(bands)
         
         x = gimage.RasterXSize
         y = gimage.RasterYSize
@@ -655,6 +658,8 @@ class geoCanvas(QtWidgets.QGraphicsView):
             
             arr[band] = gimage.GetRasterBand(band + 1).ReadAsArray(0,0,x,y)
             
+            arr[band] = ((arr[band] - arr[band].min()) / (arr[band].max() - arr[band].min()) * 256).astype("uint8")
+        
         return(arr)
     
     def exportTilesToFile(self):
@@ -698,6 +703,34 @@ class geoCanvas(QtWidgets.QGraphicsView):
 
         return(spectrumDf)
     
+    def tileToDataFrame(self):
+        
+        data = self.tiles
+        
+        glcm_prop_headers = ["contrast","dissimilarity","homogeneity","asm","energy","correlation", "class"]
+        
+        tileDf = pd.DataFrame(columns=glcm_prop_headers)
+        
+        tileDf["id"] = [x for x in range(len(data))]
+        
+        b = 0
+        
+        for i in data:
+            
+            tileDf["class"][b] = data[i].classification
+            tileDf["contrast"][b] = data[i].glcm_props["contrast"]
+            tileDf["dissimilarity"][b] = data[i].glcm_props["dissimilarity"]
+            tileDf["homogeneity"][b] = data[i].glcm_props["homogeneity"]
+            tileDf["asm"][b] = data[i].glcm_props["asm"]
+            tileDf["energy"][b] = data[i].glcm_props["energy"]
+            tileDf["correlation"][b] = data[i].glcm_props["correlation"]
+            
+            b += 1
+        
+
+        return(tileDf)
+            
+    #Encode the labels from ascii text into integer values for ML functions
     def encode_labels(self, df, column):
         
         uniqueLabels = df[column].unique()
@@ -720,17 +753,30 @@ class geoCanvas(QtWidgets.QGraphicsView):
         
         return(labels)
     
+    #Convert spectral data into a format useable by Sklearn
     def prepSpectrum(self):
 
-            tileDataFrame = self.spectralToDataframe()
+        tileDataFrame = self.spectralToDataframe()
         
-            features = np.array(tileDataFrame.drop(["class", "id"], axis=1))
+        features = np.array(tileDataFrame.drop(["class", "id"], axis=1))
         
-            labels = self.encode_labels(tileDataFrame, "class")
+        labels = self.encode_labels(tileDataFrame, "class")
             
-            labels = np.array(labels["class_encoded"])
+        labels = np.array(labels["class_encoded"])
             
-            return(features, labels)
+        return(features, labels)
+        
+    def prepTiles(self):
+        
+        tileDataFrame = self.tileToDataFrame()
+        
+        features = np.array(tileDataFrame.drop(["class","id"], axis=1))
+        
+        labels = self.encode_labels(tileDataFrame, "class")
+        
+        labels = np.array(labels["class_encoded"])
+        
+        return(features, labels)
 
     def trainAdaBoost(self):
         
@@ -738,21 +784,27 @@ class geoCanvas(QtWidgets.QGraphicsView):
             
             features, labels = self.prepSpectrum()
             
-            train_Features, test_Features, train_Labels, test_Labels = train_test_split(
-                features, labels, test_size=0.3)
-        
-            adaboost = AdaBoostClassifier(n_estimators = 50, learning_rate=1)
-        
-            model = adaboost.fit(train_Features, train_Labels)
-
-            self.models["adaBoost"] = model
-        
-            prediction = model.predict(test_Features)
-            print("Accuracy", metrics.accuracy_score(test_Labels, prediction))
-            
         else:
             
-            pass
+            features, labels = self.prepTiles()
+            
+        train_Features, test_Features, train_Labels, test_Labels = train_test_split(features, labels, test_size=0.3)
+        
+        print("--------Test Features-------")
+        print(test_Features)
+        print("=========Test Labels=========")
+        print(test_Labels)
+        
+        adaboost = AdaBoostClassifier(n_estimators = 50, learning_rate=1)
+        
+        model = adaboost.fit(train_Features, train_Labels)
+
+        self.models["adaBoost"] = model
+        
+        prediction = model.predict(test_Features)
+
+        print("Accuracy", metrics.accuracy_score(test_Labels, prediction))
+        print(self.activeGeoArray)
         
     def trainRandomForest(self):
         
@@ -781,22 +833,58 @@ class geoCanvas(QtWidgets.QGraphicsView):
         shp = self.activeGeoArray.shape
         arr = self.activeGeoArray
         
+        h = shp[0]
         l = shp[1]
         w = shp[2]
-        
+
         classified_image = np.zeros((l,w))
-        
-        for y in range(l):
+
+        if self.isSpectrum == True:
             
-            for x in range(w):
+            arr = np.reshape(arr, (h, l, w)).astype("uint8")
+            for y in range(l):
+            
+                for x in range(w):
                 
-                classified_image[y, x] = self.models[model].predict([arr[:,y,x]])
+                    classified_image[y, x] = self.models[model].predict([arr[:,y,x]])
         
-        classified_image = classified_image.reshape(l, w)
+            classified_image = classified_image.reshape(l, w)
+            
+            img = Image.fromarray((classified_image / np.nanmax(classified_image)) * 255)
+            img2 = img.convert("L")
+            img2.save("testBW.png")
         
-        img = Image.fromarray((classified_image / np.nanmax(classified_image)) * 255)
-        img2 = img.convert("L")
-        img2.save("testBW.png")
+        else:
+                    
+            arr = np.reshape(arr, (l, w)).astype("uint8")
+            
+            for y in range(0, l - self.patchSize, self.patchSize):
+                
+                for x in range(0, w - self.patchSize, self.patchSize):
+                    
+                    activeTile = arr[int(y): int(y) + int(self.patchSize), int(x):int(x) + self.patchSize]
+
+                    activeTileGlcm = greycomatrix(activeTile, distances=[5], angles=[0], levels=256, symmetric=True, normed=True)
+                    
+                    correlation = greycoprops(activeTileGlcm, 'correlation')[0,0]
+                    dissimilarity = greycoprops(activeTileGlcm, 'dissimilarity')[0,0]
+                    homogeneity = greycoprops(activeTileGlcm, 'homogeneity')[0,0]
+                    energy = greycoprops(activeTileGlcm, 'energy')[0,0]
+                    contrast = greycoprops(activeTileGlcm, 'contrast')[0,0]
+                    asm = greycoprops(activeTileGlcm, 'ASM')[0,0]
+                                                                            
+                    prediction = self.models[model].predict([[contrast, dissimilarity, homogeneity, asm, energy, correlation]])
+
+                    classified_image[int(y): int(y) + int(self.patchSize), int(x):int(x) + self.patchSize] = prediction[0]
+                    
+                    if x%100 == 0:
+                        
+                        print(prediction)
+                        
+            im = Image.fromarray((classified_image / np.nanmax(classified_image)) * 255)
+            im = im.convert("L")
+            im.save("testBW_Tiles.png")
+            im.show()
 
 #Extracts useful information from geo imagery, stores it, and closes the geoimage file
 #This is used to be able to save and access the relevant metadata, without clogging
@@ -839,12 +927,14 @@ class geoImageReference(object):
         self.bands = gimage.RasterCount
         
         gimage = None
-        
+
+#2D array extracted from an image
 class tile(object):
     
     def __init__(self, data, x, y, classification, dataSize):
         
         self.data = data.reshape(dataSize, dataSize)
+        self.data = self.data.astype(int)
         
         self.x = int(x)
         
@@ -855,8 +945,32 @@ class tile(object):
         self.classification = classification
         
         self.cleared = False
-
-
+        
+        #self.norm_vals = ((self.data - self.data.min()) / (self.data.max() - self.data.min()) * 256).astype("uint8")
+        
+        self.glcm = greycomatrix(self.data.astype("uint8"), distances=[5], angles=[0], levels=256, symmetric=True, normed=True)
+        
+        contrast = greycoprops(self.glcm, "contrast")[0][0]
+        correlation = greycoprops(self.glcm, "correlation")[0][0]
+        dissimilarity = greycoprops(self.glcm, "dissimilarity")[0][0]
+        energy = greycoprops(self.glcm, "energy")[0][0]
+        homogeneity = greycoprops(self.glcm, "homogeneity")[0][0]
+        asm = greycoprops(self.glcm, "ASM")[0][0]
+        
+        self.glcm_props = {"contrast":contrast, "correlation":correlation, 
+                           "dissimilarity":dissimilarity, "energy":energy, 
+                           "homogeneity":homogeneity, "asm":asm}
+        
+        """print("-------------- Tile Greyscale Values ---------------")
+        print(self.norm_vals)
+        print("--------------- Greycoprops Vales ---------------")
+        print(greycoprops(self.glcm, "contrast")[0][0])
+        print(greycoprops(self.glcm, "correlation")[0][0])
+        print(greycoprops(self.glcm, "dissimilarity")[0][0])
+        print(greycoprops(self.glcm, "energy")[0][0])
+        print(greycoprops(self.glcm, "homogeneity")[0][0])
+        print(greycoprops(self.glcm, "ASM")[0][0])"""
+        
         #Testing to ensure the data being used for the tiles is as expected
         #print(data.reshape(10,10))
         #test = Image.fromarray((data.reshape(10,10) / np.nanmax(data)) * 255)
