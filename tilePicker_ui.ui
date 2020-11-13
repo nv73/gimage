@@ -35,6 +35,11 @@
        <widget class="QComboBox" name="classNameCombo">
         <item>
          <property name="text">
+          <string>Vegetation</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
           <string>Tree</string>
          </property>
         </item>
@@ -208,8 +213,16 @@
      <addaction name="menuAdaBoost"/>
      <addaction name="menuRandom_Forest"/>
     </widget>
+    <widget class="QMenu" name="menuVeggiPy">
+     <property name="title">
+      <string>VeggiPy</string>
+     </property>
+     <addaction name="actionImportMultiDetect"/>
+     <addaction name="actionClassifyVegetation"/>
+    </widget>
     <addaction name="menuUnsupervised"/>
     <addaction name="menuSupervised"/>
+    <addaction name="menuVeggiPy"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -265,6 +278,16 @@
   <action name="actionRfClassify">
    <property name="text">
     <string>Classify</string>
+   </property>
+  </action>
+  <action name="actionImportMultiDetect">
+   <property name="text">
+    <string>Import MultiDetect</string>
+   </property>
+  </action>
+  <action name="actionClassifyVegetation">
+   <property name="text">
+    <string>Classify Vegetation</string>
    </property>
   </action>
  </widget>

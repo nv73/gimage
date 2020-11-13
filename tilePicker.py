@@ -69,6 +69,8 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
         self.selectedTilesTable.cellDeleted.connect(self.updateTileIndexOnDelete)
         self.actionAdd_New_Object_Type.triggered.connect(self.addNewObjectClass)
         self.actionExport_Objects_to_File.triggered.connect(self.canvas.exportTilesToFile)
+        self.actionImportMultiDetect.triggered.connect(self.canvas.import_Multidetect)
+        self.actionClassifyVegetation.triggered.connect(self.canvas.veggiPy)
         
         #Train
         self.actionAdaBoostTrain.triggered.connect(self.canvas.trainAdaBoost)
@@ -83,7 +85,7 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
         #self.pushButton.clicked.connect(lambda i: self.test("i"))
         
         #Add default object classes
-        defaultClasses = ["Tree", "Snow", "Water", "Asphalt", "Soil", "Rock"]
+        defaultClasses = ["Vegetation","Tree", "Snow", "Water", "Asphalt", "Soil", "Rock"]
         
         for i in defaultClasses:
             
@@ -117,6 +119,14 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
                                    basename(self.canvas.activeGeoImagePath),
                                    self.canvas.activeGeoArray[z, y, x]
                                    )
+        
+        if self.canvas.tiles[self.canvas.tile_index].classification not in self.canvas.orderedTileClasses:
+            
+            self.canvas.orderedTileClasses.append(self.canvas.tiles[self.canvas.tile_index].classification)
+            
+            if self.canvas.tiles[self.canvas.tile_index].classification == "Vegetation":
+            
+                self.canvas.vegetationLabelIndex = self.canvas.orderedTileClasses.index("Vegetation")
         
         self.selectedTilesTable.addToNext(tileInfo)
         
@@ -191,10 +201,7 @@ class tilePicker_Form(QtWidgets.QMainWindow, tilePicker_ui.Ui_imageTilePicker):
             self.tileSelectRadio.setChecked(True)
             
             self.tileSizeEdit.setReadOnly(False)
-            
-            #Remove this when testing is done
-            self.spectrumSelectRadio.setCheckable(True)
-            
+                        
         else:
             
             self.tileSelectRadio.setCheckable(True)
@@ -351,12 +358,16 @@ class geoCanvas(QtWidgets.QGraphicsView):
         self.activeGeoArray = None
         self.normal_activeGeoArray = None
         self.activeBand = 0
-        self.activeClass = "Tree"
+        self.activeClass = "Vegetation"
+        self.multiDetect = []
         
         #Machine Learning stuff
         self.labels = None
         self.testFeatures = None
         self.models = {}
+        self.classified_image = None
+        self.orderedTileClasses = []
+        self.vegetationLabelIndex = 0
 
     # Taken from https://stackoverflow.com/questions/35508711/how-to-enable-pan-and-zoom-in-a-qgraphicsvie
     def setQtImage(self, pixmap=None):
@@ -482,10 +493,23 @@ class geoCanvas(QtWidgets.QGraphicsView):
                 self.scene.addItem(rect)
                 newTile = tile(self.activeGeoArray[:,tileCorner[1]:tileCorner[1] + self.patchSize, tileCorner[0]:tileCorner[0] + self.patchSize],
                                tileCorner[0], tileCorner[1], self.activeClass, self.patchSize)
- 
+                
+                if len(self.multiDetect) != 0:
+                    
+                    newTile.multi = self.multiDetect[tileCorner[1]:tileCorner[1] + self.patchSize, tileCorner[0]:tileCorner[0] + self.patchSize]
+                    
+                    if np.nanmax(newTile.multi) > 0:
+                        
+                        newTile.isMulti = 1
+                        
+                    newTile.multiPercent = newTile.get_multi_percent()
+
                 self.tiles[self.tile_index] = newTile
                 
                 self.tileAdded.emit()
+                
+                print(self.orderedTileClasses)
+                print(self.vegetationLabelIndex)
                 
             else:
                 
@@ -535,16 +559,31 @@ class geoCanvas(QtWidgets.QGraphicsView):
         super(geoCanvas, self).keyPressEvent(event)
 
     def mouseMoveEvent(self, event):
+        
+        if not self._empty:
+            
+            mouse_coords = self.mapToScene(event.x(), event.y())
+        
+            self.mouse_coordinates = (mouse_coords.x(), mouse_coords.y())
+        
+            x = int(mouse_coords.x())
+            y = int(mouse_coords.y())
+                    
+            try:
+                
+                image_value = self.activeGeoArray[0][y][x]
 
-        mouse_coords = self.mapToScene(event.x(), event.y())
+                self.displayed_coordinates.setPlainText("X: %i, Y: %i, Z: %i" % (x, y, image_value))
 
-        self.mouse_coordinates = (mouse_coords.x(), mouse_coords.y())
+                self.displayed_coordinates.setPos(x, y)
+                
+            except Exception as e:
+                
+                self.displayed_coordinates.setPlainText("X: -, Y: -, Z: -")
+                
+                self.displayed_coordinates.setPos(x,y)
 
-        self.displayed_coordinates.setPlainText("X: %i, Y: %i" % (mouse_coords.x(), mouse_coords.y()))
-
-        self.displayed_coordinates.setPos(mouse_coords.x(), mouse_coords.y())
-
-        super(geoCanvas, self).mouseMoveEvent(event)
+            super(geoCanvas, self).mouseMoveEvent(event)
 
     def toggleDragMode(self):
 
@@ -606,14 +645,27 @@ class geoCanvas(QtWidgets.QGraphicsView):
         else:
             
             self.geoImage[geoImagePath] = geoImageReference(geoImagePath)
-            
+        
         self.activeGeoImagePath = geoImagePath
         
         self.activeGeoArray = self.readAs3DArray(geoImagePath)
-        print(self.activeGeoArray.shape)
-
+        
         self.displayGeoImage()
-    
+        
+    def import_Multidetect(self):
+        
+        multiImagePath = QtWidgets.QFileDialog.getOpenFileName(self, "Import GeoImage", "", ".tif(*.tif)")
+        
+        multiImage = gdal.Open(multiImagePath[0])
+        
+        x = multiImage.RasterXSize
+        y = multiImage.RasterYSize
+        
+        multiArr = multiImage.GetRasterBand(1).ReadAsArray(0,0,x,y).astype("uint8")
+        
+        self.multiDetect = multiArr
+        
+        
     #This is a bit redundant but more intuitive
     def changeGeoImage(self, geoImagePath):
         
@@ -623,6 +675,7 @@ class geoCanvas(QtWidgets.QGraphicsView):
         
         self.displayGeoImage(band=self.activeBand)
     
+    #Extends the DisplayArray function, allowing 3D arrays to be loaded
     def displayGeoImage(self, band=0):
         
         try:
@@ -632,7 +685,8 @@ class geoCanvas(QtWidgets.QGraphicsView):
         except IndexError as error:
             
             self.displayArray(self.activeGeoArray[0])
-            
+    
+    #Returns key georeferencing information from a GDAL object
     def getGeodetics(self, inputGeoImage):
         
         geoTransform = inputGeoImage.GetGeoTransform()
@@ -643,11 +697,10 @@ class geoCanvas(QtWidgets.QGraphicsView):
     
     #Takes in a GDAL object and returns a 3D Array of that object
     def readAs3DArray(self, inRasterPath):
-        
+
         gimage = gdal.Open(inRasterPath)
         
         bands = gimage.RasterCount
-        print(bands)
         
         x = gimage.RasterXSize
         y = gimage.RasterYSize
@@ -658,7 +711,7 @@ class geoCanvas(QtWidgets.QGraphicsView):
             
             arr[band] = gimage.GetRasterBand(band + 1).ReadAsArray(0,0,x,y)
             
-            arr[band] = ((arr[band] - arr[band].min()) / (arr[band].max() - arr[band].min()) * 256).astype("uint8")
+            arr[band] = ((arr[band] - arr[band].min()) / (arr[band].max() - arr[band].min()) * 255).astype("uint8")
         
         return(arr)
     
@@ -668,6 +721,37 @@ class geoCanvas(QtWidgets.QGraphicsView):
         
         pickle.dump(self.tiles, open(fname[1], 'wb'))
         
+    def classifiedToTif(self):
+        
+        fname = "test.tiff"
+        
+        im_shape = self.classified_image.shape
+        
+        outRaster = gdal.GetDriverByName("GTiff").Create(fname,im_shape[1], im_shape[0], 1, gdal.GDT_UInt16)
+        
+        geoTransform = self.geoImage[self.activeGeoImagePath].geoTransform
+        
+        outRaster.SetGeoTransform(geoTransform)
+                
+        srs = self.geoImage[self.activeGeoImagePath].spatialReferenceSystem
+        
+        outRaster.SetProjection(srs.ExportToWkt())
+        
+        outRaster.GetRasterBand(1).WriteArray(self.classified_image)
+        
+        outRaster.FlushCache()
+        
+
+    #########################################################
+    #
+    #         Here be Classification Tools.
+    #
+    #
+    #########################################################
+    
+    #This currently creates a duplicate data structure
+    #of all selected spectra. Maybe change it to simply refer
+    #to the class variable which already holds that info
     def spectralToDataframe(self):
         
         data = self.tiles
@@ -703,34 +787,38 @@ class geoCanvas(QtWidgets.QGraphicsView):
 
         return(spectrumDf)
     
+    #generates a dataframe containing the GLCM information of all selected tiles
     def tileToDataFrame(self):
         
-        data = self.tiles
-        
-        glcm_prop_headers = ["contrast","dissimilarity","homogeneity","asm","energy","correlation", "class"]
+        glcm_prop_headers = ["contrast","dissimilarity","homogeneity","asm","energy","correlation", "class", "average","multi"]
         
         tileDf = pd.DataFrame(columns=glcm_prop_headers)
         
-        tileDf["id"] = [x for x in range(len(data))]
+        tileDf["id"] = [x for x in range(len(self.tiles))]
         
         b = 0
-        
-        for i in data:
+                    
+        for i in self.tiles:
             
-            tileDf["class"][b] = data[i].classification
-            tileDf["contrast"][b] = data[i].glcm_props["contrast"]
-            tileDf["dissimilarity"][b] = data[i].glcm_props["dissimilarity"]
-            tileDf["homogeneity"][b] = data[i].glcm_props["homogeneity"]
-            tileDf["asm"][b] = data[i].glcm_props["asm"]
-            tileDf["energy"][b] = data[i].glcm_props["energy"]
-            tileDf["correlation"][b] = data[i].glcm_props["correlation"]
+            tileDf["class"][b] = self.tiles[i].classification
+            tileDf["contrast"][b] = self.tiles[i].glcm_props["contrast"]
+            tileDf["dissimilarity"][b] = self.tiles[i].glcm_props["dissimilarity"]
+            tileDf["homogeneity"][b] = self.tiles[i].glcm_props["homogeneity"]
+            tileDf["asm"][b] = self.tiles[i].glcm_props["asm"]
+            tileDf["energy"][b] = self.tiles[i].glcm_props["energy"]
+            tileDf["correlation"][b] = self.tiles[i].glcm_props["correlation"]
+            tileDf["average"][b] = self.tiles[i].glcm_props["average"]
+            
+            if len(self.multiDetect) != 0:
+                
+                tileDf["multi"][b] = self.tiles[i].glcm_props["multi"]
             
             b += 1
         
-
         return(tileDf)
             
     #Encode the labels from ascii text into integer values for ML functions
+    #Assigns a numeric value to each unique label in the column
     def encode_labels(self, df, column):
         
         uniqueLabels = df[column].unique()
@@ -765,7 +853,8 @@ class geoCanvas(QtWidgets.QGraphicsView):
         labels = np.array(labels["class_encoded"])
             
         return(features, labels)
-        
+    
+    #Convert selected tiles into format useable by sklearn    
     def prepTiles(self):
         
         tileDataFrame = self.tileToDataFrame()
@@ -789,12 +878,7 @@ class geoCanvas(QtWidgets.QGraphicsView):
             features, labels = self.prepTiles()
             
         train_Features, test_Features, train_Labels, test_Labels = train_test_split(features, labels, test_size=0.3)
-        
-        print("--------Test Features-------")
-        print(test_Features)
-        print("=========Test Labels=========")
-        print(test_Labels)
-        
+                
         adaboost = AdaBoostClassifier(n_estimators = 50, learning_rate=1)
         
         model = adaboost.fit(train_Features, train_Labels)
@@ -802,9 +886,10 @@ class geoCanvas(QtWidgets.QGraphicsView):
         self.models["adaBoost"] = model
         
         prediction = model.predict(test_Features)
-
+        
+        print("---------Training Results----------")
         print("Accuracy", metrics.accuracy_score(test_Labels, prediction))
-        print(self.activeGeoArray)
+        print("\n")
         
     def trainRandomForest(self):
         
@@ -827,7 +912,101 @@ class geoCanvas(QtWidgets.QGraphicsView):
         else:
             
             pass
+        
 
+        
+    def veggiPy(self):
+        
+        if self.isSpectrum == True:
+            
+            pass
+        
+        else:
+            
+            features, labels = self.prepTiles()
+            
+        train_Features, test_Features, train_Labels, test_Labels = train_test_split(features, labels, test_size=0.3)
+        
+        adaboost = AdaBoostClassifier(n_estimators=50, learning_rate=1)
+        
+        fit_count = 0
+        
+        model_acc = 0
+        
+        #usually you would not want to repeatedly train a model (i think) as it would take forever
+        #however, we are always working with faily low sample sizes and small datasets, so i see the 
+        #worth in trying to optimize the model
+        print("Fitting model...")
+        while fit_count <= 10:
+                    
+            model = adaboost.fit(train_Features, train_Labels)
+        
+            prediction = model.predict(test_Features)
+            
+            acc = metrics.accuracy_score(test_Labels, prediction)
+            
+            print("Pass %i Accuracy: %f" % (fit_count, acc))
+            
+            if acc > model_acc:
+                                
+                model_acc = acc
+                
+            fit_count += 1
+                
+        self.models["adaBoost"] = model
+        
+        print("Final Accuracy: %f" % acc)
+        
+        print("Predicting vegetation")
+        
+        shp = self.activeGeoArray.shape
+        arr = self.activeGeoArray
+        h = shp[0]
+        l = shp[1]
+        w = shp[2]
+        
+        veggiPy_Image = np.zeros((l, w))
+        
+        arr = np.reshape(arr, (l, w)).astype("uint8")
+        
+        #should rewrite this to actually use the tile class i wrote specifically for this purpose
+        for y in range(0, l - self.patchSize, self.patchSize):
+            
+            for x in range(0, w - self.patchSize, self.patchSize):
+                
+                
+                activeTile = arr[int(y): int(y) + int(self.patchSize), int(x):int(x) + self.patchSize]
+                
+                if np.nanmax(activeTile) != 0:
+                    
+                    activeTileGlcm = greycomatrix(activeTile, distances=[5], angles=[0], levels=256, symmetric=True, normed=True)
+                    correlation = greycoprops(activeTileGlcm, 'correlation')[0,0]
+                    dissimilarity = greycoprops(activeTileGlcm, 'dissimilarity')[0,0]
+                    homogeneity = greycoprops(activeTileGlcm, 'homogeneity')[0,0]
+                    energy = greycoprops(activeTileGlcm, 'energy')[0,0]
+                    contrast = greycoprops(activeTileGlcm, 'contrast')[0,0]
+                    asm = greycoprops(activeTileGlcm, 'ASM')[0,0]
+                    average = np.average(activeTile)
+                    multi = 0
+                
+                    if np.nanmax(self.multiDetect[int(y): int(y) + int(self.patchSize), int(x):int(x) + self.patchSize]) > 0:
+                    
+                        percent_zeros = self.multiDetect[int(y): int(y) + int(self.patchSize), int(x):int(x) + self.patchSize]
+                    
+                        multi = (np.count_nonzero(percent_zeros) / (percent_zeros.shape[1] * percent_zeros.shape[1])) * 255
+                    
+                    prediction = model.predict([[contrast, dissimilarity, homogeneity, asm, energy, correlation, average, multi]])
+                    
+                    if int(prediction[0]) == self.vegetationLabelIndex:
+                    
+                        veg_Prob = model.predict_proba([[contrast, dissimilarity, homogeneity, asm, energy, correlation, average, multi]])
+                    
+                        veggiPy_Image[int(y): int(y) + int(self.patchSize), int(x):int(x) + self.patchSize] = veg_Prob[0][self.vegetationLabelIndex] * 100
+                    
+        self.classified_image = veggiPy_Image
+        
+        self.classifiedToTif()
+            
     def classify_all(self, model):
         
         shp = self.activeGeoArray.shape
@@ -837,21 +1016,24 @@ class geoCanvas(QtWidgets.QGraphicsView):
         l = shp[1]
         w = shp[2]
 
-        classified_image = np.zeros((l,w))
+        self.classified_image = np.zeros((l,w))
 
         if self.isSpectrum == True:
             
             arr = np.reshape(arr, (h, l, w)).astype("uint8")
+            
             for y in range(l):
             
                 for x in range(w):
                 
-                    classified_image[y, x] = self.models[model].predict([arr[:,y,x]])
+                    self.classified_image[y, x] = self.models[model].predict([arr[:,y,x]])
         
-            classified_image = classified_image.reshape(l, w)
+            self.classified_image = classified_image.reshape(l, w)
             
-            img = Image.fromarray((classified_image / np.nanmax(classified_image)) * 255)
+            img = Image.fromarray((self.classified_image / np.nanmax(self.classified_image)) * 255)
+            
             img2 = img.convert("L")
+            
             img2.save("testBW.png")
         
         else:
@@ -872,18 +1054,32 @@ class geoCanvas(QtWidgets.QGraphicsView):
                     energy = greycoprops(activeTileGlcm, 'energy')[0,0]
                     contrast = greycoprops(activeTileGlcm, 'contrast')[0,0]
                     asm = greycoprops(activeTileGlcm, 'ASM')[0,0]
-                                                                            
-                    prediction = self.models[model].predict([[contrast, dissimilarity, homogeneity, asm, energy, correlation]])
-
-                    classified_image[int(y): int(y) + int(self.patchSize), int(x):int(x) + self.patchSize] = prediction[0]
+                    average = np.average(activeTile)
                     
-                    if x%100 == 0:
+                    if correlation == 1.0:
                         
-                        print(prediction)
+                        self.classified_image[int(y): int(y) + int(self.patchSize), int(x):int(x) + self.patchSize] = np.nan
                         
-            im = Image.fromarray((classified_image / np.nanmax(classified_image)) * 255)
+                    else:
+                                       #broken while multi exists                                         
+                        prediction = self.models[model].predict([[contrast, dissimilarity, homogeneity, asm, energy, correlation, average]])
+
+                        self.classified_image[int(y): int(y) + int(self.patchSize), int(x):int(x) + self.patchSize] = prediction[0]
+            
+            imLabels = [x / len(self.orderedTileClasses) * 255 for x in range(len(self.orderedTileClasses))]
+            
+            nanval = np.nanmax(self.classified_image) + 1
+            
+            self.classified_image = np.nan_to_num(x=self.classified_image, nan=nanval)
+            
+            self.classifiedToTif()
+            
+            im = Image.fromarray((self.classified_image / np.nanmax(self.classified_image)) * 255)
+            
             im = im.convert("L")
+            
             im.save("testBW_Tiles.png")
+            
             im.show()
 
 #Extracts useful information from geo imagery, stores it, and closes the geoimage file
@@ -946,9 +1142,15 @@ class tile(object):
         
         self.cleared = False
         
-        #self.norm_vals = ((self.data - self.data.min()) / (self.data.max() - self.data.min()) * 256).astype("uint8")
+        self.avg = np.average(self.data)
         
         self.glcm = greycomatrix(self.data.astype("uint8"), distances=[5], angles=[0], levels=256, symmetric=True, normed=True)
+        
+        self.multi = None
+        
+        self.isMulti = 0
+        
+        self.multiPercent = 0
         
         contrast = greycoprops(self.glcm, "contrast")[0][0]
         correlation = greycoprops(self.glcm, "correlation")[0][0]
@@ -956,31 +1158,34 @@ class tile(object):
         energy = greycoprops(self.glcm, "energy")[0][0]
         homogeneity = greycoprops(self.glcm, "homogeneity")[0][0]
         asm = greycoprops(self.glcm, "ASM")[0][0]
-        
+        """
+        print("\n---------------------------------------\n")
+        print("Contrast: %f" % contrast)
+        print("Correlation: %f" % correlation)
+        print("Dissimilarity: %f" % dissimilarity)
+        print("Energy: %f" % energy)
+        print("Homogeneity: %f" % homogeneity)
+        print("ASM: %f" % asm)
+        print("Average: %f" % self.avg)
+        print("Min: %f" % np.min(self.data))
+        """
         self.glcm_props = {"contrast":contrast, "correlation":correlation, 
                            "dissimilarity":dissimilarity, "energy":energy, 
-                           "homogeneity":homogeneity, "asm":asm}
+                           "homogeneity":homogeneity, "asm":asm, "average":self.avg,
+                           "multi":self.multiPercent}
         
-        """print("-------------- Tile Greyscale Values ---------------")
-        print(self.norm_vals)
-        print("--------------- Greycoprops Vales ---------------")
-        print(greycoprops(self.glcm, "contrast")[0][0])
-        print(greycoprops(self.glcm, "correlation")[0][0])
-        print(greycoprops(self.glcm, "dissimilarity")[0][0])
-        print(greycoprops(self.glcm, "energy")[0][0])
-        print(greycoprops(self.glcm, "homogeneity")[0][0])
-        print(greycoprops(self.glcm, "ASM")[0][0])"""
+    def get_multi_percent(self):
+            
+        num_zeros = np.count_nonzero(self.multi == 0)
+            
+        num_total = self.shape[1] * self.shape[2]
+            
+        return((num_zeros / num_total) * 255)
         
-        #Testing to ensure the data being used for the tiles is as expected
-        #print(data.reshape(10,10))
-        #test = Image.fromarray((data.reshape(10,10) / np.nanmax(data)) * 255)
-        #test = test.convert("L")
-        #test.save("test.png")
-
     def __str__(self):
         
         return(self.data)
-
+        
 class spectrum(object):
     
     def __init__(self, data, x, y, classification, dataSize):

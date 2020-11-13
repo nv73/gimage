@@ -2,11 +2,13 @@
 
 # Form implementation generated from reading ui file 'tilePicker_ui.ui'
 #
-# Created by: PyQt5 UI code generator 5.9.2
+# Created by: PyQt5 UI code generator 5.12.3
 #
 # WARNING! All changes made in this file will be lost!
 
+
 from PyQt5 import QtCore, QtGui, QtWidgets
+
 
 class Ui_imageTilePicker(object):
     def setupUi(self, imageTilePicker):
@@ -27,6 +29,7 @@ class Ui_imageTilePicker(object):
         self.formLayout.setWidget(0, QtWidgets.QFormLayout.LabelRole, self.label)
         self.classNameCombo = QtWidgets.QComboBox(self.centralwidget)
         self.classNameCombo.setObjectName("classNameCombo")
+        self.classNameCombo.addItem("")
         self.classNameCombo.addItem("")
         self.classNameCombo.addItem("")
         self.classNameCombo.addItem("")
@@ -93,6 +96,8 @@ class Ui_imageTilePicker(object):
         self.menuAdaBoost.setObjectName("menuAdaBoost")
         self.menuRandom_Forest = QtWidgets.QMenu(self.menuSupervised)
         self.menuRandom_Forest.setObjectName("menuRandom_Forest")
+        self.menuVeggiPy = QtWidgets.QMenu(self.menuClassification)
+        self.menuVeggiPy.setObjectName("menuVeggiPy")
         self.menuHelp = QtWidgets.QMenu(self.menubar)
         self.menuHelp.setObjectName("menuHelp")
         imageTilePicker.setMenuBar(self.menubar)
@@ -117,6 +122,10 @@ class Ui_imageTilePicker(object):
         self.actionRfTrain.setObjectName("actionRfTrain")
         self.actionRfClassify = QtWidgets.QAction(imageTilePicker)
         self.actionRfClassify.setObjectName("actionRfClassify")
+        self.actionImportMultiDetect = QtWidgets.QAction(imageTilePicker)
+        self.actionImportMultiDetect.setObjectName("actionImportMultiDetect")
+        self.actionClassifyVegetation = QtWidgets.QAction(imageTilePicker)
+        self.actionClassifyVegetation.setObjectName("actionClassifyVegetation")
         self.menuObjects.addAction(self.actionAdd_New_Object_Type)
         self.menuObjects.addAction(self.actionLoad_Object_Config)
         self.menuObjects.addAction(self.actionExport_Objects_to_File)
@@ -128,8 +137,11 @@ class Ui_imageTilePicker(object):
         self.menuRandom_Forest.addAction(self.actionRfClassify)
         self.menuSupervised.addAction(self.menuAdaBoost.menuAction())
         self.menuSupervised.addAction(self.menuRandom_Forest.menuAction())
+        self.menuVeggiPy.addAction(self.actionImportMultiDetect)
+        self.menuVeggiPy.addAction(self.actionClassifyVegetation)
         self.menuClassification.addAction(self.menuUnsupervised.menuAction())
         self.menuClassification.addAction(self.menuSupervised.menuAction())
+        self.menuClassification.addAction(self.menuVeggiPy.menuAction())
         self.menubar.addAction(self.menuImage.menuAction())
         self.menubar.addAction(self.menuObjects.menuAction())
         self.menubar.addAction(self.menuClassification.menuAction())
@@ -142,14 +154,15 @@ class Ui_imageTilePicker(object):
         _translate = QtCore.QCoreApplication.translate
         imageTilePicker.setWindowTitle(_translate("imageTilePicker", "Tile Picker"))
         self.label.setText(_translate("imageTilePicker", "Object Type"))
-        self.classNameCombo.setItemText(0, _translate("imageTilePicker", "Tree"))
-        self.classNameCombo.setItemText(1, _translate("imageTilePicker", "Snow"))
-        self.classNameCombo.setItemText(2, _translate("imageTilePicker", "Water"))
-        self.classNameCombo.setItemText(3, _translate("imageTilePicker", "Asphalt"))
-        self.classNameCombo.setItemText(4, _translate("imageTilePicker", "Concrete"))
-        self.classNameCombo.setItemText(5, _translate("imageTilePicker", "Soil"))
-        self.classNameCombo.setItemText(6, _translate("imageTilePicker", "Grass"))
-        self.classNameCombo.setItemText(7, _translate("imageTilePicker", "Paint"))
+        self.classNameCombo.setItemText(0, _translate("imageTilePicker", "Vegetation"))
+        self.classNameCombo.setItemText(1, _translate("imageTilePicker", "Tree"))
+        self.classNameCombo.setItemText(2, _translate("imageTilePicker", "Snow"))
+        self.classNameCombo.setItemText(3, _translate("imageTilePicker", "Water"))
+        self.classNameCombo.setItemText(4, _translate("imageTilePicker", "Asphalt"))
+        self.classNameCombo.setItemText(5, _translate("imageTilePicker", "Concrete"))
+        self.classNameCombo.setItemText(6, _translate("imageTilePicker", "Soil"))
+        self.classNameCombo.setItemText(7, _translate("imageTilePicker", "Grass"))
+        self.classNameCombo.setItemText(8, _translate("imageTilePicker", "Paint"))
         self.tileSelectRadio.setText(_translate("imageTilePicker", "Tile Select Mode"))
         self.spectrumSelectRadio.setText(_translate("imageTilePicker", "Spectrum Select Mode"))
         self.label_3.setText(_translate("imageTilePicker", "Tile Size"))
@@ -163,6 +176,7 @@ class Ui_imageTilePicker(object):
         self.menuSupervised.setTitle(_translate("imageTilePicker", "Supervised"))
         self.menuAdaBoost.setTitle(_translate("imageTilePicker", "AdaBoost"))
         self.menuRandom_Forest.setTitle(_translate("imageTilePicker", "Random Forest"))
+        self.menuVeggiPy.setTitle(_translate("imageTilePicker", "VeggiPy"))
         self.menuHelp.setTitle(_translate("imageTilePicker", "Help"))
         self.actionAdd_New_Object_Type.setText(_translate("imageTilePicker", "Add New Object Type"))
         self.actionLoad_Object_Config.setText(_translate("imageTilePicker", "Load Object Config"))
@@ -173,6 +187,8 @@ class Ui_imageTilePicker(object):
         self.actionAdaBoostClassify.setText(_translate("imageTilePicker", "Classify"))
         self.actionRfTrain.setText(_translate("imageTilePicker", "Train"))
         self.actionRfClassify.setText(_translate("imageTilePicker", "Classify"))
+        self.actionImportMultiDetect.setText(_translate("imageTilePicker", "Import MultiDetect"))
+        self.actionClassifyVegetation.setText(_translate("imageTilePicker", "Classify Vegetation"))
 
 
 if __name__ == "__main__":
@@ -183,4 +199,3 @@ if __name__ == "__main__":
     ui.setupUi(imageTilePicker)
     imageTilePicker.show()
     sys.exit(app.exec_())
-
